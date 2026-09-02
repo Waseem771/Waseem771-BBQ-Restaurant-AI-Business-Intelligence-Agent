@@ -53,3 +53,12 @@ def query_rows(sql: str, params: tuple | dict | None = None) -> list[dict]:
     with get_connection(readonly=True) as conn:
         cur = conn.execute(sql, params or ())
         return [dict(r) for r in cur.fetchall()]
+
+
+def execute_write(sql: str, params: tuple | dict | None = None) -> int:
+    """Run a write statement (INSERT/UPDATE/DELETE) on a read-write connection and return lastrowid."""
+    with get_connection(readonly=False) as conn:
+        cur = conn.execute(sql, params or ())
+        conn.commit()
+        return cur.lastrowid
+

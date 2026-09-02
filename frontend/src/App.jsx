@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { SettingsProvider, useSettings } from './context/SettingsContext';
 import LoginPage from './components/LoginPage';
 import Dashboard from './components/Dashboard';
+import TestComponent from './components/TestComponent';
 import './App.css';
 
 /**
@@ -12,6 +13,7 @@ function AppContent() {
   const { config, settings, setTheme } = useSettings();
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [showTest, setShowTest] = useState(false);
 
   // Initialize theme on mount
   useEffect(() => {
@@ -76,6 +78,7 @@ function AppContent() {
 
   const handleLoginSuccess = (sessionData) => {
     setUser(sessionData);
+    setShowTest(false);
 
     if (config.DEBUG.enabled) {
       console.log('✅ User logged in:', sessionData.email);
@@ -101,8 +104,58 @@ function AppContent() {
     );
   }
 
+  // Show test page if user clicks to debug
+  if (showTest) {
+    return (
+      <div style={{ position: 'relative' }}>
+        <TestComponent />
+        <button
+          onClick={() => setShowTest(false)}
+          style={{
+            position: 'fixed',
+            top: '1rem',
+            left: '1rem',
+            padding: '0.5rem 1rem',
+            background: '#D84C1A',
+            color: '#fff',
+            border: 'none',
+            borderRadius: 6,
+            cursor: 'pointer',
+            zIndex: 1000,
+          }}
+        >
+          ← Back
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="app-container" data-theme={settings.theme}>
+      {/* Debug button in corner */}
+      <button
+        onClick={() => setShowTest(!showTest)}
+        style={{
+          position: 'fixed',
+          bottom: '1rem',
+          right: '1rem',
+          width: '40px',
+          height: '40px',
+          borderRadius: '50%',
+          background: '#D84C1A',
+          color: '#fff',
+          border: 'none',
+          cursor: 'pointer',
+          zIndex: 999,
+          fontSize: '1.2rem',
+          opacity: 0.6,
+          hover: { opacity: 1 },
+        }}
+        title="Click for diagnostics"
+      >
+        🔧
+      </button>
+
       {user ? (
         <Dashboard user={user} onLogout={handleLogout} />
       ) : (
