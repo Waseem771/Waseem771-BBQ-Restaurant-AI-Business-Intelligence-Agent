@@ -12,6 +12,7 @@ import {
   AlertTriangle, CheckCircle
 } from 'lucide-react';
 import '../styles/Dashboard.css';
+import Configuration from './Configuration';
 
 // Error boundary to catch crashes
 class ErrorBoundary extends React.Component {
@@ -1195,26 +1196,7 @@ function DashboardContent({ user, onLogout }) {
           {activeNav === 'forecasting' && <Forecasting />}
           {activeNav === 'alerts'      && <Alerts />}
           {activeNav === 'ai'          && <AIChat />}
-          {activeNav === 'config' && (
-            <section className="placeholder-section">
-              <h2>⚙️ Configuration</h2>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: '1rem', marginTop: '1.5rem' }}>
-                {[
-                  { label: 'Logged in as', val: displayName },
-                  { label: 'Role',          val: displayRole },
-                  { label: 'Email',         val: user?.email || '—' },
-                  { label: 'Status',        val: user?.status || 'Active' },
-                  { label: 'API Backend',   val: 'http://localhost:8000' },
-                  { label: 'Connection',    val: '✅ Connected' },
-                ].map((c, i) => (
-                  <div key={i} style={{ padding: '0.75rem 1rem', background: '#F8F6F2', borderRadius: 8 }}>
-                    <p style={{ fontSize: '0.72rem', color: '#8B8B8B' }}>{c.label}</p>
-                    <p style={{ fontWeight: 600, color: '#1A1A1A', marginTop: 4 }}>{c.val}</p>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
+          {activeNav === 'config'      && <Configuration />}
         </main>
       </div>
     </div>

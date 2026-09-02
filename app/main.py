@@ -55,6 +55,10 @@ app.include_router(websocket.router)
 app.include_router(models.router)
 app.include_router(auth.router)
 
+# Include new products router
+from app.api.routes import products
+app.include_router(products.router)
+
 API = "/api/v1"
 
 
