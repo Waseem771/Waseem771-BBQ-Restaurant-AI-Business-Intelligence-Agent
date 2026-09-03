@@ -1,7 +1,6 @@
 """One-command launcher for the BBQ BI MVP.
 
-Builds the database if missing, starts the FastAPI backend, then runs the
-Streamlit dashboard in the foreground. Stopping (Ctrl-C) shuts both down.
+Builds the database if missing and starts the FastAPI backend. Stopping (Ctrl-C) shuts the API down.
 
     python run.py
 """
@@ -33,13 +32,9 @@ def main() -> None:
         cwd=ROOT,
     )
     try:
-        time.sleep(2.5)  # give uvicorn a moment to bind
-        print("Starting dashboard on http://localhost:8501 …\n")
-        subprocess.run(
-            [sys.executable, "-m", "streamlit", "run", "app/dashboard.py",
-             "--server.port", "8501"],
-            cwd=ROOT,
-        )
+        # Streamlit dashboard disabled per request – only FastAPI backend runs
+        print("FastAPI backend is running at http://127.0.0.1:8000")
+        api.wait()  # keep the script alive while API is running
     finally:
         print("\nShutting down API…")
         api.terminate()
