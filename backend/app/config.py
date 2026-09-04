@@ -16,22 +16,39 @@ from dotenv import load_dotenv
 APP_ROOT: Path = Path(__file__).resolve().parent.parent
 
 # Load .env from the project root (no-op if the file doesn't exist).
-load_dotenv(APP_ROOT / ".env")
+# Try both the backend directory and the project root (one level up),
+# since the main .env lives at the project root.
+load_dotenv(APP_ROOT.parent / ".env")
+load_dotenv(APP_ROOT / ".env", override=True)
+
+
+# The actual project root is one level above APP_ROOT (backend/) when the
+# .env and data/ directory live at the top-level project folder.
+PROJECT_ROOT: Path = APP_ROOT.parent
 
 
 def _path_env(name: str, default: Path) -> Path:
-    """Return a Path from an env var, falling back to ``default``."""
+    """Return a Path from an env var, falling back to ``default``.
+
+    Relative paths from env vars are resolved against PROJECT_ROOT
+    (where `.env` lives) so that `./data/bbq.db` works regardless of CWD.
+    """
     value = os.getenv(name)
-    return Path(value) if value else default
+    if value:
+        p = Path(value)
+        if not p.is_absolute():
+            p = PROJECT_ROOT / p
+        return p
+    return default
 
 
 # --- Data locations -------------------------------------------------------
-DATA_DIR: Path = _path_env("BBQ_DATA_DIR", APP_ROOT / "data")
+DATA_DIR: Path = _path_env("BBQ_DATA_DIR", PROJECT_ROOT / "data")
 DB_PATH: Path = _path_env("BBQ_DB_PATH", DATA_DIR / "bbq.db")
 
 # The Phase 1 CSVs live in a sibling `dataset/` folder by default:
 #   Projects/dataset/*.csv   (this app lives in Projects/BBQ.../)
-DATASET_DIR: Path = _path_env("BBQ_DATASET_DIR", APP_ROOT.parent / "dataset")
+DATASET_DIR: Path = _path_env("BBQ_DATASET_DIR", PROJECT_ROOT.parent / "dataset")
 
 # --- AI assistant ---------------------------------------------------------
 # Which backend translates questions into SQL and phrases the answer.

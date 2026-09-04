@@ -12,18 +12,13 @@ Endpoints:
 Beginner-friendly with detailed English comments.
 """
 
-import sys
-from pathlib import Path
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 
 from fastapi import APIRouter, Query, HTTPException
 from pydantic import BaseModel, Field
 
-# Add parent directory to path so we can import from app package
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-
-from app.agents.anomaly_tool import AIAgentAnomalyTool
+from ...agents.anomaly_tool import AIAgentAnomalyTool
 
 # Initialize anomaly tool
 anomaly_tool = AIAgentAnomalyTool()

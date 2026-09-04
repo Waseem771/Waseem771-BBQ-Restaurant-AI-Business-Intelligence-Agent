@@ -6,14 +6,12 @@ This module provides a tool that the AI agent can call to detect
 unusual sales patterns and generate alerts.
 """
 
-import sys
-from pathlib import Path
+import logging
 from typing import Dict, Any, List
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+from ..anomaly_detection import AnomalyDetector, load_sales_data, engineer_anomaly_features
 
-from anomaly_detection import AnomalyDetector, load_sales_data, engineer_anomaly_features
+logger = logging.getLogger(__name__)
 
 
 class AIAgentAnomalyTool:
@@ -42,7 +40,7 @@ class AIAgentAnomalyTool:
             self.detector.train(self.data)
             self.results, _ = self.detector.detect_anomalies(self.data)
         except Exception as e:
-            print(f"Error initializing anomaly detector: {e}")
+            logger.error(f"Error initializing anomaly detector: {e}")
 
     def call(self, action: str, params: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -255,58 +253,4 @@ Model Information:
 - Algorithm: Isolation Forest
 - Detection Rate: 5.1%
 - Features: 7 engineered features
-- Data: 273 days of historical sales
 """
-
-
-# ============================================================================
-# Test Cases
-# ============================================================================
-
-if __name__ == "__main__":
-    print("=" * 80)
-    print("PHASE 9 - AI AGENT ANOMALY DETECTION TOOL")
-    print("=" * 80)
-
-    # Initialize tool
-    tool = AIAgentAnomalyTool()
-
-    print("\n[TOOL DESCRIPTION]")
-    print(tool.describe())
-
-    # Test 1: Detect current anomalies
-    print("\n[TEST 1] Detect current anomalies (last 7 days)")
-    result = tool.call("detect_current", {"days": 7})
-    print(f"Summary: {result['summary']}")
-    if result['anomalies']:
-        for anom in result['anomalies'][:3]:
-            print(f"  {anom['date']}: {anom['severity']} - {anom['revenue']:,.0f} PKR")
-
-    # Test 2: Get statistics
-    print("\n[TEST 2] Get anomaly statistics")
-    result = tool.call("get_statistics", {})
-    print(f"Total Days: {result['total_days']}")
-    print(f"Anomalies: {result['anomaly_count']} ({result['anomaly_percentage']:.1f}%)")
-    print(f"Normal Avg Revenue: {result['normal_avg_revenue']:,.0f} PKR")
-    print(f"Anomaly Avg Revenue: {result['anomaly_avg_revenue']:,.0f} PKR")
-
-    # Test 3: Explain specific anomaly
-    print("\n[TEST 3] Explain specific anomaly")
-    result = tool.call("explain_anomaly", {"date": "2026-03-23"})
-    if "error" not in result:
-        print(f"Date: {result['date']}")
-        print(f"Severity: {result['severity']}")
-        print(f"Revenue: {result['revenue']:,.0f} PKR")
-        print(f"Explanation: {result['explanation']}")
-
-    # Test 4: Get HIGH severity alerts
-    print("\n[TEST 4] Get HIGH severity alerts")
-    result = tool.call("get_alerts", {"severity": "HIGH"})
-    print(f"HIGH Severity Alerts: {result['alert_count']}")
-    if result['alerts']:
-        for alert in result['alerts'][:3]:
-            print(f"  {alert['date']}: {alert['explanation']}")
-
-    print("\n" + "=" * 80)
-    print("ALL TESTS PASSED - READY FOR AI AGENT INTEGRATION")
-    print("=" * 80)

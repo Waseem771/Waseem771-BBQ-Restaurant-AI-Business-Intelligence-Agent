@@ -19,6 +19,8 @@ import numpy as np
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
 
+from . import config
+
 
 class ForecastTool:
     """
@@ -30,14 +32,14 @@ class ForecastTool:
     - get_forecast_confidence() -> Returns model accuracy metrics
     """
 
-    def __init__(self, db_path: str = "data/bbq.db"):
+    def __init__(self, db_path: str = None):
         """
         Initialize the forecast tool.
 
         Args:
-            db_path: Path to SQLite database
+            db_path: Path to SQLite database (defaults to config.DB_PATH)
         """
-        self.db_path = Path(db_path)
+        self.db_path = Path(db_path) if db_path else Path(config.DB_PATH).resolve()
         self.model = None
         self.trained = False
         self._train_model()

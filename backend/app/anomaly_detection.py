@@ -16,6 +16,7 @@ Features:
 """
 
 import sqlite3
+import logging
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Tuple, Dict, List, Optional
@@ -25,33 +26,23 @@ import pandas as pd
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import StandardScaler
 
-print("=" * 80)
-print("PHASE 9 - ANOMALY DETECTION SYSTEM")
-print("=" * 80)
+from . import config
+
+logger = logging.getLogger(__name__)
 
 # ============================================================================
-# STEP 1: Configuration
+# Configuration
 # ============================================================================
-
-print("\n[1/6] Setting up configuration...")
-
-DB_PATH = Path("data/bbq.db")
 
 # Anomaly Detection Parameters
 CONTAMINATION_RATE = 0.05  # Expect 5% anomalies
 SENSITIVITY = "medium"  # low, medium, high
 LOOKBACK_DAYS = 7  # Compare current day with last 7 days average
 
-print(f"  Database: {DB_PATH}")
-print(f"  Contamination Rate: {CONTAMINATION_RATE*100:.1f}%")
-print(f"  Sensitivity: {SENSITIVITY}")
-print(f"  Lookback Period: {LOOKBACK_DAYS} days")
-
 # ============================================================================
-# STEP 2: Data Loading
+# Data Loading
 # ============================================================================
 
-print("\n[2/6] Loading sales data from database...")
 
 def load_sales_data() -> pd.DataFrame:
     """
@@ -66,7 +57,8 @@ def load_sales_data() -> pd.DataFrame:
     Returns:
         DataFrame with daily sales metrics and features
     """
-    conn = sqlite3.connect(str(DB_PATH))
+    db_path = Path(config.DB_PATH).resolve()
+    conn = sqlite3.connect(str(db_path))
 
     query = """
     SELECT
@@ -88,10 +80,8 @@ def load_sales_data() -> pd.DataFrame:
     df['date'] = pd.to_datetime(df['date'])
     df = df.sort_values('date').reset_index(drop=True)
 
-    print(f"  Loaded {len(df)} days of data")
-    print(f"  Date range: {df['date'].min().date()} to {df['date'].max().date()}")
-    print(f"  Total revenue: {df['daily_revenue'].sum():,.0f} PKR")
-    print(f"  Avg daily revenue: {df['daily_revenue'].mean():,.0f} PKR")
+    logger.info(f"Loaded {len(df)} days of data")
+    logger.info(f"Date range: {df['date'].min().date()} to {df['date'].max().date()}")
 
     return df
 
@@ -140,19 +130,13 @@ def engineer_anomaly_features(df: pd.DataFrame) -> pd.DataFrame:
     # Volatility
     df['volatility_7d'] = df['daily_revenue'].pct_change().rolling(7).std() * 100
 
-    print(f"  Added 12 anomaly detection features")
     return df
 
 
-# Load and prepare data
-daily_sales = load_sales_data()
-daily_sales_features = engineer_anomaly_features(daily_sales)
-
 # ============================================================================
-# STEP 3: Anomaly Detection Class
+# Anomaly Detection Class
 # ============================================================================
 
-print("\n[3/6] Building anomaly detection system...")
 
 class AnomalyDetector:
     """
@@ -184,8 +168,6 @@ class AnomalyDetector:
         self.trained = False
         self.anomalies = []
 
-        print("  Anomaly Detector initialized")
-
     def train(self, df: pd.DataFrame) -> None:
         """
         Train Isolation Forest on historical data.
@@ -200,8 +182,6 @@ class AnomalyDetector:
         Args:
             df: DataFrame with features
         """
-        print("  Training Isolation Forest...")
-
         # Select features for anomaly detection
         feature_cols = [
             'daily_revenue', 'order_count', 'avg_order_value',
@@ -216,9 +196,6 @@ class AnomalyDetector:
         X_scaled = self.scaler.fit_transform(X)
 
         # Train Isolation Forest
-        # n_estimators: number of trees (100 is good balance)
-        # contamination: expected % of anomalies
-        # random_state: for reproducibility
         self.model = IsolationForest(
             n_estimators=100,
             contamination=self.contamination_rate,
@@ -242,8 +219,7 @@ class AnomalyDetector:
 
         # Count anomalies
         n_anomalies = (predictions == -1).sum()
-        print(f"  Model trained")
-        print(f"  Anomalies detected: {n_anomalies} ({n_anomalies/len(df)*100:.1f}%)")
+        logger.info(f"Anomaly model trained: {n_anomalies} anomalies ({n_anomalies/len(df)*100:.1f}%)")
 
     def detect_anomalies(self, df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -262,10 +238,8 @@ class AnomalyDetector:
             DataFrame with anomaly detection results
         """
         if not self.trained:
-            print("  ERROR: Model not trained")
+            logger.error("Model not trained")
             return None
-
-        print("  Detecting anomalies...")
 
         feature_cols = [
             'daily_revenue', 'order_count', 'avg_order_value',
@@ -300,7 +274,7 @@ class AnomalyDetector:
 
         # Get anomalies only
         anomalies = df[df['is_anomaly']].copy()
-        print(f"  Found {len(anomalies)} anomalies")
+        logger.info(f"Found {len(anomalies)} anomalies")
 
         return df, anomalies
 
@@ -341,78 +315,81 @@ class AnomalyDetector:
         return "; ".join(reasons)
 
 
-# Initialize and train detector
-detector = AnomalyDetector(contamination_rate=CONTAMINATION_RATE)
-detector.train(daily_sales_features)
-
 # ============================================================================
-# STEP 4: Detect Anomalies
+# Script mode — only runs when executed directly, not on import
 # ============================================================================
 
-print("\n[4/6] Detecting anomalies in historical data...")
+if __name__ == "__main__":
+    print("=" * 80)
+    print("PHASE 9 - ANOMALY DETECTION SYSTEM")
+    print("=" * 80)
 
-results_df, anomalies_df = detector.detect_anomalies(daily_sales_features)
+    print("\n[1/6] Setting up configuration...")
+    print(f"  Database: {config.DB_PATH}")
+    print(f"  Contamination Rate: {CONTAMINATION_RATE*100:.1f}%")
+    print(f"  Sensitivity: {SENSITIVITY}")
+    print(f"  Lookback Period: {LOOKBACK_DAYS} days")
 
-# ============================================================================
-# STEP 5: Analyze and Display Results
-# ============================================================================
+    print("\n[2/6] Loading sales data from database...")
+    daily_sales = load_sales_data()
+    daily_sales_features = engineer_anomaly_features(daily_sales)
 
-print("\n[5/6] Analyzing anomaly detection results...")
+    print("\n[3/6] Building anomaly detection system...")
+    detector = AnomalyDetector(contamination_rate=CONTAMINATION_RATE)
+    detector.train(daily_sales_features)
 
-print(f"\nAnomalies by Severity:")
-severity_counts = anomalies_df['severity'].value_counts()
-for severity in ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']:
-    count = severity_counts.get(severity, 0)
-    print(f"  {severity}: {count}")
+    print("\n[4/6] Detecting anomalies in historical data...")
+    results_df, anomalies_df = detector.detect_anomalies(daily_sales_features)
 
-print(f"\nTop 10 Most Anomalous Days:")
-top_anomalies = results_df[results_df['is_anomaly']].nsmallest(10, 'anomaly_score')[
-    ['date', 'daily_revenue', 'order_count', 'severity', 'anomaly_score']
-]
+    print("\n[5/6] Analyzing anomaly detection results...")
+    print(f"\nAnomalies by Severity:")
+    severity_counts = anomalies_df['severity'].value_counts()
+    for severity in ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']:
+        count = severity_counts.get(severity, 0)
+        print(f"  {severity}: {count}")
 
-for idx, row in top_anomalies.iterrows():
-    # Get full row from results_df for explanation
-    full_row = results_df.loc[idx]
-    explanation = detector.explain_anomaly(full_row)
-    print(f"  {row['date'].date()} - {row['severity']}")
-    print(f"    Revenue: {row['daily_revenue']:,.0f} PKR ({row['order_count']} orders)")
-    print(f"    Reason: {explanation}")
-    print()
+    print(f"\nTop 10 Most Anomalous Days:")
+    top_anomalies = results_df[results_df['is_anomaly']].nsmallest(10, 'anomaly_score')[
+        ['date', 'daily_revenue', 'order_count', 'severity', 'anomaly_score']
+    ]
 
-# ============================================================================
-# STEP 6: Statistics and Summary
-# ============================================================================
+    for idx, row in top_anomalies.iterrows():
+        full_row = results_df.loc[idx]
+        explanation = detector.explain_anomaly(full_row)
+        print(f"  {row['date'].date()} - {row['severity']}")
+        print(f"    Revenue: {row['daily_revenue']:,.0f} PKR ({row['order_count']} orders)")
+        print(f"    Reason: {explanation}")
+        print()
 
-print("\n[6/6] Generating anomaly detection summary...")
+    print("\n[6/6] Generating anomaly detection summary...")
+    print("\n" + "=" * 80)
+    print("ANOMALY DETECTION SUMMARY")
+    print("=" * 80)
 
-print("\n" + "=" * 80)
-print("ANOMALY DETECTION SUMMARY")
-print("=" * 80)
+    print("\n[DATA ANALYSIS]")
+    print(f"  Total Days Analyzed: {len(results_df)}")
+    print(f"  Anomalies Detected: {len(anomalies_df)} ({len(anomalies_df)/len(results_df)*100:.1f}%)")
 
-print("\n[DATA ANALYSIS]")
-print(f"  Total Days Analyzed: {len(results_df)}")
-print(f"  Anomalies Detected: {len(anomalies_df)} ({len(anomalies_df)/len(results_df)*100:.1f}%)")
+    print("\n[SEVERITY DISTRIBUTION]")
+    for severity in ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']:
+        count = len(anomalies_df[anomalies_df['severity'] == severity])
+        pct = (count / len(anomalies_df) * 100) if len(anomalies_df) > 0 else 0
+        print(f"  {severity}: {count} ({pct:.1f}%)")
 
-print("\n[SEVERITY DISTRIBUTION]")
-for severity in ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']:
-    count = len(anomalies_df[anomalies_df['severity'] == severity])
-    pct = (count / len(anomalies_df) * 100) if len(anomalies_df) > 0 else 0
-    print(f"  {severity}: {count} ({pct:.1f}%)")
+    print("\n[ANOMALY STATISTICS]")
+    print(f"  Min Anomaly Score: {anomalies_df['anomaly_score'].min():.4f}")
+    print(f"  Max Anomaly Score: {anomalies_df['anomaly_score'].max():.4f}")
+    print(f"  Avg Anomaly Score: {anomalies_df['anomaly_score'].mean():.4f}")
 
-print("\n[ANOMALY STATISTICS]")
-print(f"  Min Anomaly Score: {anomalies_df['anomaly_score'].min():.4f}")
-print(f"  Max Anomaly Score: {anomalies_df['anomaly_score'].max():.4f}")
-print(f"  Avg Anomaly Score: {anomalies_df['anomaly_score'].mean():.4f}")
+    print("\n[REVENUE ANALYSIS]")
+    print(f"  Normal Days Avg Revenue: {results_df[~results_df['is_anomaly']]['daily_revenue'].mean():,.0f} PKR")
+    print(f"  Anomaly Days Avg Revenue: {anomalies_df['daily_revenue'].mean():,.0f} PKR")
+    print(f"  Revenue Difference: {(anomalies_df['daily_revenue'].mean() / results_df[~results_df['is_anomaly']]['daily_revenue'].mean() - 1)*100:+.1f}%")
 
-print("\n[REVENUE ANALYSIS]")
-print(f"  Normal Days Avg Revenue: {results_df[~results_df['is_anomaly']]['daily_revenue'].mean():,.0f} PKR")
-print(f"  Anomaly Days Avg Revenue: {anomalies_df['daily_revenue'].mean():,.0f} PKR")
-print(f"  Revenue Difference: {(anomalies_df['daily_revenue'].mean() / results_df[~results_df['is_anomaly']]['daily_revenue'].mean() - 1)*100:+.1f}%")
+    print("\n[ORDER ANALYSIS]")
+    print(f"  Normal Days Avg Orders: {results_df[~results_df['is_anomaly']]['order_count'].mean():.0f}")
+    print(f"  Anomaly Days Avg Orders: {anomalies_df['order_count'].mean():.0f}")
 
-print("\n[ORDER ANALYSIS]")
-print(f"  Normal Days Avg Orders: {results_df[~results_df['is_anomaly']]['order_count'].mean():.0f}")
-print(f"  Anomaly Days Avg Orders: {anomalies_df['order_count'].mean():.0f}")
-
-print("\n" + "=" * 80)
-print("PHASE 9 - ANOMALY DETECTION COMPLETE")
-print("=" * 80)
+    print("\n" + "=" * 80)
+    print("PHASE 9 - ANOMALY DETECTION COMPLETE")
+    print("=" * 80)
