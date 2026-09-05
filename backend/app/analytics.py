@@ -17,24 +17,37 @@ from . import db
 _WEEKEND = (5, 6)
 
 
-def kpis() -> dict:
+def kpis(timeframe: str = "all") -> dict:
     """Headline KPIs for the dashboard."""
+    where_clause = ""
+    if timeframe == "today":
+        where_clause = "WHERE order_date = (SELECT MAX(order_date) FROM orders)"
+    elif timeframe == "week":
+        where_clause = "WHERE order_date >= date((SELECT MAX(order_date) FROM orders), '-7 days')"
+    elif timeframe == "month":
+        where_clause = "WHERE order_date >= date((SELECT MAX(order_date) FROM orders), '-30 days')"
+    elif timeframe == "quarter":
+        where_clause = "WHERE order_date >= date((SELECT MAX(order_date) FROM orders), '-90 days')"
+
     row = db.query_rows(
-        """
+        f"""
         SELECT COUNT(*)          AS total_orders,
                SUM(total_amount) AS total_revenue,
                AVG(total_amount) AS avg_order_value,
                MIN(order_date)   AS start_date,
                MAX(order_date)   AS end_date
         FROM orders
+        {where_clause}
         """
     )[0]
     profit = db.query_rows(
-        """
+        f"""
         SELECT SUM(oi.line_total)              AS revenue_items,
                SUM(oi.quantity * p.unit_cost)  AS cost
         FROM order_items oi
         JOIN products p ON p.product_id = oi.product_id
+        JOIN orders o ON o.order_id = oi.order_id
+        {where_clause}
         """
     )[0]
     counts = db.query_rows(
