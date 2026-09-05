@@ -137,8 +137,8 @@ def health():
 # Dashboard / analytics
 # --------------------------------------------------------------------------
 @app.get(f"{API}/dashboard/kpis", tags=["dashboard"])
-def get_kpis():
-    return _run(analytics.kpis)
+def get_kpis(timeframe: str = Query("all", description="Timeframe filter (today, week, month, quarter, all)")):
+    return _run(analytics.kpis, timeframe=timeframe)
 
 
 @app.get(f"{API}/sales/monthly", tags=["sales"])

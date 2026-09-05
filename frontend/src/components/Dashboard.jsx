@@ -155,7 +155,7 @@ const BRAND = ['#D84C1A', '#F39C12', '#27AE60', '#3498DB', '#9B59B6'];
 /* ═══════════════════════════════════════════════════════════════════════
    OVERVIEW
 ═══════════════════════════════════════════════════════════════════════ */
-function Overview() {
+function Overview({ dateRange = 'all' }) {
   const [kpis, setKpis] = useState(null);
   const [monthly, setMonthly] = useState([]);
   const [anomalies, setAnomalies] = useState([]);
@@ -164,9 +164,10 @@ function Overview() {
 
   useEffect(() => {
     const loadData = async () => {
+      setBusy(true);
       try {
         const [k, m, a] = await Promise.all([
-          api('/dashboard/kpis'),
+          api(`/dashboard/kpis?timeframe=${dateRange}`),
           api('/sales/monthly'),
           api('/anomalies?threshold=0.6'),
         ]);
@@ -183,7 +184,7 @@ function Overview() {
     };
 
     loadData();
-  }, []);
+  }, [dateRange]);
 
   if (error) {
     return (
@@ -1220,10 +1221,10 @@ function DashboardContent({ user, onLogout }) {
 
         {/* ── CONTENT ── */}
         <main className="dashboard-content">
-          {activeNav === 'overview'    && <Overview />}
-          {activeNav === 'analytics'   && <Analytics />}
-          {activeNav === 'products'    && <Products />}
-          {activeNav === 'forecasting' && <Forecasting />}
+          {activeNav === 'overview' && <Overview dateRange={dateRange} />}
+          {activeNav === 'analytics' && <Analytics dateRange={dateRange} />}
+          {activeNav === 'products' && <Products dateRange={dateRange} />}
+          {activeNav === 'forecasting' && <Forecasting dateRange={dateRange} />}
           {activeNav === 'alerts'      && <Alerts />}
           {activeNav === 'ai'          && <AIChat />}
           {activeNav === 'config'      && <Configuration />}
