@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import '../styles/Dashboard.css';
 import Configuration from './Configuration';
+import { apiRequest } from '../lib/api';
 
 // Error boundary to catch crashes
 class ErrorBoundary extends React.Component {
@@ -54,10 +55,33 @@ class ErrorBoundary extends React.Component {
 
 /* ─── helpers ──────────────────────────────────────────────────────────── */
 const BASE = 'http://localhost:8000/api/v1';
+const TOKEN_KEY = 'bbq_auth_token';
 
 async function api(path) {
   try {
-    const res = await fetch(`${BASE}${path}`);
+    let token = localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
+    if (!token) {
+      const sessionRaw = localStorage.getItem('bbq_user_session') || sessionStorage.getItem('bbq_user_session');
+      if (sessionRaw) {
+        try { token = JSON.parse(sessionRaw).token; } catch (e) {}
+      }
+    }
+    const headers = { 'Accept': 'application/json' };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    const res = await fetch(`${BASE}${path}`, { headers });
+    
+    if (res.status === 401) {
+      console.warn('Session expired. Logging out...');
+      localStorage.removeItem('bbq_user_session');
+      sessionStorage.removeItem('bbq_user_session');
+      localStorage.removeItem(TOKEN_KEY);
+      sessionStorage.removeItem(TOKEN_KEY);
+      window.location.reload();
+      return null;
+    }
+    
     if (!res.ok) return null;
     const data = await res.json();
     return Array.isArray(data) ? data : (data.value ?? data);
@@ -134,7 +158,6 @@ const BRAND = ['#D84C1A', '#F39C12', '#27AE60', '#3498DB', '#9B59B6'];
 function Overview() {
   const [kpis, setKpis] = useState(null);
   const [monthly, setMonthly] = useState([]);
-  const [products, setProducts] = useState([]);
   const [anomalies, setAnomalies] = useState([]);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState(null);
@@ -142,16 +165,14 @@ function Overview() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [k, m, p, a] = await Promise.all([
+        const [k, m, a] = await Promise.all([
           api('/dashboard/kpis'),
           api('/sales/monthly'),
-          api('/products/top?limit=5'),
           api('/anomalies?threshold=0.6'),
         ]);
 
         if (k && typeof k === 'object' && !Array.isArray(k)) setKpis(k);
         if (Array.isArray(m)) setMonthly(m);
-        if (Array.isArray(p)) setProducts(p);
         if (Array.isArray(a)) setAnomalies(a);
       } catch (err) {
         console.error('Overview load error:', err);
@@ -166,125 +187,126 @@ function Overview() {
 
   if (error) {
     return (
-      <div style={{ padding: '2rem', color: '#E74C3C' }}>
-        <p>⚠️ Error loading overview: {error}</p>
+      <div className="p-8 text-red-500 bg-red-500/10 rounded-2xl border border-red-500/20">
+        <p className="flex items-center gap-2"><AlertCircle /> Error loading overview: {error}</p>
       </div>
     );
   }
 
   if (busy) return <Loader />;
 
-  const cards = kpis
-    ? [
-        { label: 'Total Revenue',    value: fmtPKR(kpis.total_revenue),    Icon: DollarSign,  note: `${kpis.gross_margin_pct}% margin` },
-        { label: 'Total Orders',     value: fmtN(kpis.total_orders),        Icon: ShoppingBag, note: '+8.2% vs last period' },
-        { label: 'Avg Order Value',  value: fmtPKR(kpis.avg_order_value),   Icon: BarChart2,   note: '+3.8% vs last period' },
-        { label: 'Gross Profit',     value: fmtPKR(kpis.gross_profit),      Icon: TrendingUp,  note: `${kpis.total_branches} branches` },
-        { label: 'Total Customers',  value: fmtN(kpis.total_customers),     Icon: Users,       note: `${kpis.start_date} → ${kpis.end_date}` },
-        { label: 'Products',         value: fmtN(kpis.total_products),      Icon: Package,     note: '4 categories' },
-      ]
-    : [];
-
   return (
-    <>
-      {/* KPI CARDS */}
-      <section className="kpi-section">
-        <h2 className="section-title">📊 Key Performance Indicators</h2>
-        <div className="kpi-grid">
-          {cards.map((c, i) => (
-            <div key={i} className="kpi-card">
-              <div className="kpi-header">
-                <c.Icon size={20} style={{ color: '#D84C1A' }} />
-                <span className="kpi-change up">
-                  <TrendingUp size={12} /> {c.note}
-                </span>
-              </div>
-              <p className="kpi-label">{c.label}</p>
-              <p className="kpi-value">{c.value}</p>
+    <div className="flex flex-col gap-6">
+      {/* KPIs */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* KPI 1 */}
+        <div className="bg-[var(--color-surface)] p-6 rounded-2xl border border-[var(--color-border)] shadow-sm flex flex-col transition-transform hover:-translate-y-1 hover:shadow-md">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-[var(--color-text-secondary)] font-medium">Total Revenue</h3>
+            <div className="w-8 h-8 rounded-full bg-green-500/10 text-green-500 flex items-center justify-center">
+              <DollarSign size={18} />
             </div>
-          ))}
-        </div>
-      </section>
-
-      {/* CHARTS */}
-      <section className="charts-section">
-        {/* Monthly Revenue */}
-        <div className="chart-card">
-          <div className="chart-header"><h3>📈 Monthly Revenue</h3></div>
-          <ResponsiveContainer width="100%" height={260}>
-            <AreaChart data={monthly}>
-              <defs>
-                <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#D84C1A" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#D84C1A" stopOpacity={0}   />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#E8E6E2" />
-              <XAxis dataKey="month" stroke="#8B8B8B" tick={{ fontSize: 11 }} />
-              <YAxis stroke="#8B8B8B" tickFormatter={(v) => `₨${(v / 1000).toFixed(0)}k`} />
-              <Tooltip content={<Tip />} />
-              <Area type="monotone" dataKey="revenue" stroke="#D84C1A"
-                fill="url(#g1)" strokeWidth={2} name="Revenue" />
-            </AreaChart>
-          </ResponsiveContainer>
+          </div>
+          <div className="text-3xl font-bold text-[var(--color-text-primary)]">{kpis ? fmtPKR(kpis.total_revenue) : '—'}</div>
+          <div className="mt-2 text-sm text-green-500 font-medium flex items-center">
+            <TrendingUp size={14} className="mr-1" /> {kpis?.gross_margin_pct}% margin
+          </div>
         </div>
 
-        {/* Top Products Pie */}
-        <div className="chart-card">
-          <div className="chart-header"><h3>🍖 Top Products</h3></div>
-          <ResponsiveContainer width="100%" height={260}>
-            <PieChart>
-              <Pie data={products} cx="50%" cy="50%" outerRadius={95}
-                dataKey="revenue"
-                label={({ name, percent }) => {
-                  try {
-                    const nameStr = String(name || '');
-                    const firstName = nameStr.split(' ')[0] || 'Product';
-                    return `${firstName} ${(percent * 100).toFixed(0)}%`;
-                  } catch (e) {
-                    return `Product ${(percent * 100).toFixed(0)}%`;
-                  }
-                }}
-                labelLine={false}>
-                {products.map((_, i) => (
-                  <Cell key={i} fill={BRAND[i % BRAND.length]} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(v) => fmtPKR(v)} />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-      </section>
-
-      {/* ANOMALIES */}
-      <section className="anomalies-section">
-        <h2 className="section-title">🚨 Recent Anomalies</h2>
-        <div className="anomalies-list">
-          {anomalies.length === 0 && (
-            <p style={{ color: '#27AE60' }}>✅ No anomalies detected</p>
-          )}
-          {anomalies.slice(0, 5).map((a, i) => (
-            <div key={i}
-              className={`anomaly-item severity-${a.severity === 'HIGH' ? 'warning' : 'info'}`}>
-              <div className="anomaly-icon">
-                {a.direction === 'spike'
-                  ? <TrendingUp size={20} />
-                  : <TrendingDown size={20} />}
-              </div>
-              <div className="anomaly-content">
-                <p className="anomaly-type">
-                  {a.severity} — Revenue {a.direction} on {a.date}
-                </p>
-                <p className="anomaly-message">
-                  Actual: {fmtPKR(a.revenue)} | Expected: {fmtPKR(a.expected)} | Deviation: {a.deviation_pct}%
-                </p>
-              </div>
-              <p className="anomaly-time">{a.date}</p>
+        {/* KPI 2 */}
+        <div className="bg-[var(--color-surface)] p-6 rounded-2xl border border-[var(--color-border)] shadow-sm flex flex-col transition-transform hover:-translate-y-1 hover:shadow-md">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-[var(--color-text-secondary)] font-medium">Total Orders</h3>
+            <div className="w-8 h-8 rounded-full bg-blue-500/10 text-blue-500 flex items-center justify-center">
+              <ShoppingBag size={18} />
             </div>
-          ))}
+          </div>
+          <div className="text-3xl font-bold text-[var(--color-text-primary)]">{kpis ? fmtN(kpis.total_orders) : '—'}</div>
+          <div className="mt-2 text-sm text-blue-500 font-medium flex items-center">
+            <TrendingUp size={14} className="mr-1" /> +8.2% vs last period
+          </div>
         </div>
-      </section>
-    </>
+
+        {/* KPI 3 */}
+        <div className="bg-[var(--color-surface)] p-6 rounded-2xl border border-[var(--color-border)] shadow-sm flex flex-col transition-transform hover:-translate-y-1 hover:shadow-md">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-[var(--color-text-secondary)] font-medium">Avg Order Value</h3>
+            <div className="w-8 h-8 rounded-full bg-orange-500/10 text-orange-500 flex items-center justify-center">
+              <BarChart2 size={18} />
+            </div>
+          </div>
+          <div className="text-3xl font-bold text-[var(--color-text-primary)]">{kpis ? fmtPKR(kpis.avg_order_value) : '—'}</div>
+          <div className="mt-2 text-sm text-[var(--color-text-secondary)] font-medium flex items-center">
+            <TrendingUp size={14} className="mr-1" /> +3.8% vs last period
+          </div>
+        </div>
+      </div>
+
+      {/* AI Insights & Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        {/* Main Chart */}
+        <div className="lg:col-span-2 bg-[var(--color-surface)] p-6 rounded-2xl border border-[var(--color-border)] shadow-sm">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-lg font-bold text-[var(--color-text-primary)]">Revenue Trend</h2>
+            <select className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-lg px-3 py-1 text-sm outline-none">
+              <option>Last 6 Months</option>
+            </select>
+          </div>
+          <div className="relative h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={monthly}>
+                <defs>
+                  <linearGradient id="g1_new" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor="var(--color-primary)" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="var(--color-primary)" stopOpacity={0}   />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-divider)" vertical={false} />
+                <XAxis dataKey="month" stroke="var(--color-text-tertiary)" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis stroke="var(--color-text-tertiary)" tickFormatter={(v) => `₨${(v / 1000).toFixed(0)}k`} axisLine={false} tickLine={false} />
+                <Tooltip content={<Tip />} />
+                <Area type="monotone" dataKey="revenue" stroke="var(--color-primary)" fill="url(#g1_new)" strokeWidth={3} name="Revenue" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* AI Alerts */}
+        <div className="bg-[var(--color-surface)] p-6 rounded-2xl border border-[var(--color-border)] shadow-sm flex flex-col h-[350px]">
+          <h2 className="text-lg font-bold text-[var(--color-text-primary)] mb-6 flex items-center">
+            <div className="bg-[var(--color-primary)]/10 text-[var(--color-primary)] w-8 h-8 rounded-lg flex items-center justify-center mr-3">
+              <AlertCircle size={18} style={{ color: 'var(--color-primary)' }} />
+            </div>
+            AI Anomalies
+          </h2>
+
+          <div className="flex flex-col gap-4 overflow-y-auto pr-2 custom-scrollbar flex-1">
+            {anomalies.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-[var(--color-text-secondary)]">
+                <CheckCircle size={32} className="text-green-500 mb-2" />
+                <p>No anomalies detected</p>
+              </div>
+            ) : (
+              anomalies.slice(0, 5).map((a, i) => (
+                <div key={i} className={`p-4 rounded-xl border relative overflow-hidden shrink-0 ${a.severity === 'HIGH' ? 'bg-red-500/5 border-red-500/20' : 'bg-blue-500/5 border-blue-500/20'}`}>
+                  <div className={`absolute top-0 left-0 w-1 h-full ${a.severity === 'HIGH' ? 'bg-red-500' : 'bg-blue-500'}`}></div>
+                  <div className="flex justify-between items-start mb-1">
+                    <span className={`font-bold text-sm ${a.severity === 'HIGH' ? 'text-red-500' : 'text-blue-500'}`}>
+                      {a.direction === 'spike' ? 'Spike Detected' : 'Drop Detected'}
+                    </span>
+                    <span className="text-[var(--color-text-tertiary)] text-xs">{a.date}</span>
+                  </div>
+                  <p className="text-[var(--color-text-primary)] text-sm mt-1">
+                    {a.severity === 'HIGH' ? 'Significant' : 'Minor'} deviation: {a.deviation_pct}% from expected {fmtPKR(a.expected)}.
+                  </p>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -329,76 +351,75 @@ function Analytics() {
 
   if (error) {
     return (
-      <div style={{ padding: '2rem', color: '#E74C3C' }}>
-        <p>⚠️ Error loading analytics: {error}</p>
+      <div className="p-8 text-red-500 bg-red-500/10 rounded-2xl border border-red-500/20">
+        <p className="flex items-center gap-2"><AlertCircle /> Error loading analytics: {error}</p>
       </div>
     );
   }
 
   if (busy) return <Loader />;
 
-  const BCOL = ['#D84C1A', '#F39C12', '#27AE60'];
+  const BCOL = ['var(--color-primary)', '#F39C12', '#27AE60'];
   const totalRev = branches.reduce((s, b) => s + (b.revenue || 0), 0);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-      <h2 className="section-title">📈 Advanced Analytics</h2>
-
+    <div className="flex flex-col gap-6">
       {/* Month comparison */}
       {monthComp && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {[
-            { label: 'Previous Month', sub: monthComp.previous_month, val: fmtPKR(monthComp.previous_revenue), color: '#8B8B8B' },
-            { label: 'Current Month',  sub: monthComp.current_month,  val: fmtPKR(monthComp.current_revenue),  color: '#D84C1A' },
+            { label: 'Previous Month', sub: monthComp.previous_month, val: fmtPKR(monthComp.previous_revenue), color: 'var(--color-text-tertiary)', border: 'var(--color-text-tertiary)' },
+            { label: 'Current Month',  sub: monthComp.current_month,  val: fmtPKR(monthComp.current_revenue),  color: 'var(--color-primary)', border: 'var(--color-primary)' },
             {
               label: 'Month-over-Month', sub: 'Change',
               val: `${monthComp.change_pct >= 0 ? '+' : ''}${monthComp.change_pct}%`,
-              color: monthComp.change_pct >= 0 ? '#27AE60' : '#E74C3C',
+              color: monthComp.change_pct >= 0 ? '#27AE60' : '#E74C3C', border: monthComp.change_pct >= 0 ? '#27AE60' : '#E74C3C'
             },
           ].map((c, i) => (
-            <div key={i} className="kpi-card" style={{ borderTop: `3px solid ${c.color}` }}>
-              <p className="kpi-label">{c.label}</p>
-              <p style={{ fontSize: '0.72rem', color: '#8B8B8B', margin: '2px 0 6px' }}>{c.sub}</p>
-              <p className="kpi-value" style={{ color: c.color }}>{c.val}</p>
+            <div key={i} className="bg-[var(--color-surface)] p-6 rounded-2xl border shadow-sm flex flex-col" style={{ borderTop: `4px solid ${c.border}`, borderColor: 'var(--color-border)' }}>
+              <h3 className="text-[var(--color-text-secondary)] font-medium mb-1">{c.label}</h3>
+              <p className="text-xs text-[var(--color-text-tertiary)] mb-4">{c.sub}</p>
+              <div className="text-3xl font-bold" style={{ color: c.color }}>{c.val}</div>
             </div>
           ))}
         </div>
       )}
 
       {/* Branch bar chart + cards */}
-      <div className="chart-card full-width">
-        <div className="chart-header"><h3>🏪 Branch Performance</h3></div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', alignItems: 'center' }}>
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={branches} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" stroke="#E8E6E2" />
-              <XAxis type="number" stroke="#8B8B8B"
-                tickFormatter={(v) => `₨${(v / 1000000).toFixed(1)}M`} />
-              <YAxis type="category" dataKey="branch_name" stroke="#8B8B8B"
-                width={130} tick={{ fontSize: 12 }} />
-              <Tooltip formatter={(v) => fmtPKR(v)} />
-              <Bar dataKey="revenue" name="Revenue" radius={[0, 4, 4, 0]}>
-                {branches.map((_, i) => <Cell key={i} fill={BCOL[i]} />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+      <div className="bg-[var(--color-surface)] p-6 rounded-2xl border border-[var(--color-border)] shadow-sm">
+        <h2 className="text-lg font-bold text-[var(--color-text-primary)] mb-6 flex items-center">
+           🏪 Branch Performance
+        </h2>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={branches} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-divider)" horizontal={false} />
+                <XAxis type="number" stroke="var(--color-text-tertiary)"
+                  tickFormatter={(v) => `₨${(v / 1000000).toFixed(1)}M`} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="branch_name" stroke="var(--color-text-tertiary)"
+                  width={130} tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                <Tooltip formatter={(v) => fmtPKR(v)} cursor={{fill: 'var(--color-divider)'}} />
+                <Bar dataKey="revenue" name="Revenue" radius={[0, 4, 4, 0]}>
+                  {branches.map((_, i) => <Cell key={i} fill={BCOL[i]} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+          <div className="flex flex-col gap-4">
             {branches.map((b, i) => {
               const pct = totalRev ? ((b.revenue / totalRev) * 100).toFixed(1) : 0;
               return (
-                <div key={i} style={{
-                  padding: '0.7rem 1rem', background: '#F8F6F2',
-                  borderRadius: 8, borderLeft: `4px solid ${BCOL[i]}`,
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                    <strong style={{ fontSize: '0.875rem' }}>{b.branch_name}</strong>
-                    <span style={{ color: BCOL[i], fontWeight: 700 }}>{pct}%</span>
+                <div key={i} className="p-4 bg-[var(--color-bg-primary)] rounded-xl" style={{ borderLeft: `4px solid ${BCOL[i]}` }}>
+                  <div className="flex justify-between items-center mb-2">
+                    <strong className="text-[var(--color-text-primary)]">{b.branch_name}</strong>
+                    <span className="font-bold" style={{ color: BCOL[i] }}>{pct}%</span>
                   </div>
-                  <p style={{ fontSize: '0.78rem', color: '#5C5C5C' }}>
-                    Revenue: {fmtPKR(b.revenue)} &nbsp;|&nbsp;
-                    Orders: {fmtN(b.orders)} &nbsp;|&nbsp;
-                    Avg: {fmtPKR(b.avg_order_value)}
+                  <p className="text-xs text-[var(--color-text-secondary)]">
+                    Revenue: <span className="font-medium text-[var(--color-text-primary)]">{fmtPKR(b.revenue)}</span> &nbsp;|&nbsp;
+                    Orders: <span className="font-medium text-[var(--color-text-primary)]">{fmtN(b.orders)}</span> &nbsp;|&nbsp;
+                    Avg: <span className="font-medium text-[var(--color-text-primary)]">{fmtPKR(b.avg_order_value)}</span>
                   </p>
                 </div>
               );
@@ -407,52 +428,60 @@ function Analytics() {
         </div>
       </div>
 
-      {/* Daily 30-day trend */}
-      <div className="chart-card full-width">
-        <div className="chart-header"><h3>📅 Daily Revenue — Last 30 Days</h3></div>
-        <ResponsiveContainer width="100%" height={240}>
-          <AreaChart data={daily}>
-            <defs>
-              <linearGradient id="g2" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%"  stopColor="#3498DB" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#3498DB" stopOpacity={0}   />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#E8E6E2" />
-            <XAxis dataKey="date" stroke="#8B8B8B" tick={{ fontSize: 10 }}
-              interval={Math.floor(daily.length / 6)} />
-            <YAxis stroke="#8B8B8B" tickFormatter={(v) => `₨${(v / 1000).toFixed(0)}k`} />
-            <Tooltip content={<Tip />} />
-            <Area type="monotone" dataKey="revenue" stroke="#3498DB"
-              fill="url(#g2)" strokeWidth={2} name="Daily Revenue" />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-
-      {/* Weekend vs Weekday */}
-      {weekend && (
-        <div className="chart-card">
-          <div className="chart-header"><h3>📆 Weekend vs Weekday</h3></div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', padding: '0.5rem 0' }}>
-            {[
-              { label: '🎉 Weekend Avg Revenue', val: fmtPKR(weekend.weekend_avg_revenue), color: '#D84C1A' },
-              { label: '💼 Weekday Avg Revenue', val: fmtPKR(weekend.weekday_avg_revenue), color: '#3498DB' },
-              { label: '🎉 Weekend Avg Orders',  val: weekend.weekend_avg_orders,           color: '#D84C1A' },
-              { label: '💼 Weekday Avg Orders',  val: weekend.weekday_avg_orders,           color: '#3498DB' },
-            ].map((item, i) => (
-              <div key={i} style={{ padding: '1rem', background: '#F8F6F2', borderRadius: 8, textAlign: 'center' }}>
-                <p style={{ fontSize: '0.78rem', color: '#5C5C5C', marginBottom: 6 }}>{item.label}</p>
-                <p style={{ fontSize: '1.3rem', fontWeight: 700, color: item.color }}>{item.val}</p>
-              </div>
-            ))}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Daily 30-day trend */}
+        <div className="lg:col-span-2 bg-[var(--color-surface)] p-6 rounded-2xl border border-[var(--color-border)] shadow-sm">
+          <h2 className="text-lg font-bold text-[var(--color-text-primary)] mb-6">
+            📅 Daily Revenue (30 Days)
+          </h2>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={daily}>
+                <defs>
+                  <linearGradient id="g2" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor="#3498DB" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="#3498DB" stopOpacity={0}   />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-divider)" vertical={false} />
+                <XAxis dataKey="date" stroke="var(--color-text-tertiary)" tick={{ fontSize: 10 }}
+                  interval={Math.floor(daily.length / 6)} axisLine={false} tickLine={false} />
+                <YAxis stroke="var(--color-text-tertiary)" tickFormatter={(v) => `₨${(v / 1000).toFixed(0)}k`} axisLine={false} tickLine={false} />
+                <Tooltip content={<Tip />} />
+                <Area type="monotone" dataKey="revenue" stroke="#3498DB"
+                  fill="url(#g2)" strokeWidth={3} name="Daily Revenue" />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
-          {weekend.orders_ratio && (
-            <p style={{ textAlign: 'center', color: '#27AE60', fontWeight: 600, paddingTop: 8 }}>
-              ✅ Weekends generate {weekend.orders_ratio}× more orders than weekdays
-            </p>
-          )}
         </div>
-      )}
+
+        {/* Weekend vs Weekday */}
+        {weekend && (
+          <div className="bg-[var(--color-surface)] p-6 rounded-2xl border border-[var(--color-border)] shadow-sm flex flex-col">
+            <h2 className="text-lg font-bold text-[var(--color-text-primary)] mb-6">
+              📆 Weekend vs Weekday
+            </h2>
+            <div className="grid grid-cols-2 gap-4 flex-1">
+              {[
+                { label: 'Weekend Avg Rev', val: fmtPKR(weekend.weekend_avg_revenue), color: 'var(--color-primary)' },
+                { label: 'Weekday Avg Rev', val: fmtPKR(weekend.weekday_avg_revenue), color: '#3498DB' },
+                { label: 'Weekend Orders',  val: weekend.weekend_avg_orders,           color: 'var(--color-primary)' },
+                { label: 'Weekday Orders',  val: weekend.weekday_avg_orders,           color: '#3498DB' },
+              ].map((item, i) => (
+                <div key={i} className="p-4 bg-[var(--color-bg-primary)] rounded-xl flex flex-col items-center justify-center text-center">
+                  <p className="text-xs text-[var(--color-text-secondary)] mb-2">{item.label}</p>
+                  <p className="text-lg font-bold" style={{ color: item.color }}>{item.val}</p>
+                </div>
+              ))}
+            </div>
+            {weekend.orders_ratio && (
+              <div className="mt-4 p-3 bg-green-500/10 text-green-600 rounded-lg text-sm text-center font-medium">
+                ✅ Weekends generate {weekend.orders_ratio}× more orders
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -489,70 +518,72 @@ function Products() {
 
   if (error) {
     return (
-      <div style={{ padding: '2rem', color: '#E74C3C' }}>
-        <p>⚠️ Error loading products: {error}</p>
+      <div className="p-8 text-red-500 bg-red-500/10 rounded-2xl border border-red-500/20">
+        <p className="flex items-center gap-2"><AlertCircle /> Error loading products: {error}</p>
       </div>
     );
   }
 
   if (busy) return <Loader />;
 
-  const CAT = { 'BBQ Platters': '#D84C1A', Sides: '#27AE60', Beverages: '#3498DB', Desserts: '#9B59B6' };
+  const CAT = { 'BBQ Platters': 'var(--color-primary)', Sides: '#27AE60', Beverages: '#3498DB', Desserts: '#9B59B6' };
   const totalRev = products.reduce((s, p) => s + (p.revenue || 0), 0);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-      <h2 className="section-title">🍖 Product Performance</h2>
-
+    <div className="flex flex-col gap-6">
       {/* Category charts */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-        <div className="chart-card">
-          <div className="chart-header"><h3>📂 Revenue by Category</h3></div>
-          <ResponsiveContainer width="100%" height={220}>
-            <PieChart>
-              <Pie data={categories} cx="50%" cy="50%" outerRadius={85} innerRadius={35}
-                dataKey="revenue"
-                label={({ name, percent }) => {
-                  try {
-                    const nameStr = String(name || 'Category');
-                    return `${nameStr} ${(percent * 100).toFixed(0)}%`;
-                  } catch (e) {
-                    return `${(percent * 100).toFixed(0)}%`;
-                  }
-                }}
-                labelLine={false}>
-                {categories.map((c, i) => <Cell key={i} fill={CAT[c.category] || '#8B8B8B'} />)}
-              </Pie>
-              <Tooltip formatter={(v) => fmtPKR(v)} />
-            </PieChart>
-          </ResponsiveContainer>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-[var(--color-surface)] p-6 rounded-2xl border border-[var(--color-border)] shadow-sm">
+          <h2 className="text-lg font-bold text-[var(--color-text-primary)] mb-6">📂 Revenue by Category</h2>
+          <div className="h-[260px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={categories} cx="50%" cy="50%" outerRadius={95} innerRadius={45} stroke="var(--color-surface)" strokeWidth={3}
+                  dataKey="revenue"
+                  label={({ name, percent }) => {
+                    try {
+                      const nameStr = String(name || 'Category');
+                      return `${nameStr} ${(percent * 100).toFixed(0)}%`;
+                    } catch (e) {
+                      return `${(percent * 100).toFixed(0)}%`;
+                    }
+                  }}
+                  labelLine={false}>
+                  {categories.map((c, i) => <Cell key={i} fill={CAT[c.category] || 'var(--color-text-tertiary)'} />)}
+                </Pie>
+                <Tooltip formatter={(v) => fmtPKR(v)} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
         </div>
 
-        <div className="chart-card">
-          <div className="chart-header"><h3>📦 Units Sold by Category</h3></div>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={categories}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#E8E6E2" />
-              <XAxis dataKey="category" stroke="#8B8B8B" tick={{ fontSize: 11 }} />
-              <YAxis stroke="#8B8B8B" />
-              <Tooltip />
-              <Bar dataKey="units_sold" name="Units Sold" radius={[4, 4, 0, 0]}>
-                {categories.map((c, i) => <Cell key={i} fill={CAT[c.category] || '#8B8B8B'} />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+        <div className="bg-[var(--color-surface)] p-6 rounded-2xl border border-[var(--color-border)] shadow-sm">
+          <h2 className="text-lg font-bold text-[var(--color-text-primary)] mb-6">📦 Units Sold by Category</h2>
+          <div className="h-[260px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={categories}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-divider)" vertical={false} />
+                <XAxis dataKey="category" stroke="var(--color-text-tertiary)" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis stroke="var(--color-text-tertiary)" axisLine={false} tickLine={false} />
+                <Tooltip cursor={{fill: 'var(--color-divider)'}} />
+                <Bar dataKey="units_sold" name="Units Sold" radius={[4, 4, 0, 0]}>
+                  {categories.map((c, i) => <Cell key={i} fill={CAT[c.category] || 'var(--color-text-tertiary)'} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </div>
 
       {/* Full product table */}
-      <div className="chart-card full-width">
-        <div className="chart-header"><h3>📋 All Products — Detailed Breakdown</h3></div>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+      <div className="bg-[var(--color-surface)] p-6 rounded-2xl border border-[var(--color-border)] shadow-sm overflow-hidden">
+        <h2 className="text-lg font-bold text-[var(--color-text-primary)] mb-6">📋 All Products — Detailed Breakdown</h2>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm border-collapse">
             <thead>
-              <tr style={{ background: '#F8F6F2', borderBottom: '2px solid #E8E6E2' }}>
+              <tr className="bg-[var(--color-bg-primary)] border-b-2 border-[var(--color-border)] text-[var(--color-text-secondary)]">
                 {['#', 'Product', 'Category', 'Revenue', 'Units Sold', 'Share', 'Avg Price'].map((h) => (
-                  <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: '#5C5C5C', whiteSpace: 'nowrap' }}>{h}</th>
+                  <th key={h} className="p-3 font-semibold whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -561,28 +592,28 @@ function Products() {
                 const share = totalRev ? ((p.revenue / totalRev) * 100).toFixed(1) : 0;
                 const avgPrice = p.units_sold ? (p.revenue / p.units_sold).toFixed(0) : 0;
                 return (
-                  <tr key={i} style={{ borderBottom: '1px solid #E8E6E2' }}>
-                    <td style={{ padding: '10px 14px', color: '#8B8B8B' }}>{i + 1}</td>
-                    <td style={{ padding: '10px 14px', fontWeight: 600 }}>
-                      {i === 0 && <Star size={13} style={{ color: '#F39C12', display: 'inline', marginRight: 4 }} />}
+                  <tr key={i} className="border-b border-[var(--color-border)] hover:bg-[var(--color-bg-primary)]/50 transition-colors">
+                    <td className="p-3 text-[var(--color-text-tertiary)]">{i + 1}</td>
+                    <td className="p-3 font-medium text-[var(--color-text-primary)]">
+                      {i === 0 && <Star size={14} className="inline mr-1 text-[#F39C12]" />}
                       {p.product_name}
                     </td>
-                    <td style={{ padding: '10px 14px' }}>
-                      <span style={{ background: CAT[p.category] || '#8B8B8B', color: '#fff', padding: '2px 8px', borderRadius: 12, fontSize: '0.72rem' }}>
+                    <td className="p-3">
+                      <span className="text-xs text-white px-2.5 py-1 rounded-full" style={{ background: CAT[p.category] || 'var(--color-text-tertiary)' }}>
                         {p.category}
                       </span>
                     </td>
-                    <td style={{ padding: '10px 14px', fontWeight: 600, color: '#D84C1A' }}>{fmtPKR(p.revenue)}</td>
-                    <td style={{ padding: '10px 14px' }}>{fmtN(p.units_sold)}</td>
-                    <td style={{ padding: '10px 14px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <div style={{ width: 60, background: '#E8E6E2', borderRadius: 4, height: 6 }}>
-                          <div style={{ width: `${share}%`, background: '#D84C1A', height: '100%', borderRadius: 4 }} />
+                    <td className="p-3 font-bold text-[var(--color-primary)]">{fmtPKR(p.revenue)}</td>
+                    <td className="p-3 text-[var(--color-text-primary)]">{fmtN(p.units_sold)}</td>
+                    <td className="p-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-16 h-1.5 bg-[var(--color-border)] rounded-full overflow-hidden">
+                          <div className="h-full bg-[var(--color-primary)] rounded-full" style={{ width: `${share}%` }} />
                         </div>
-                        <span style={{ fontSize: '0.78rem', color: '#5C5C5C' }}>{share}%</span>
+                        <span className="text-xs text-[var(--color-text-secondary)] font-medium">{share}%</span>
                       </div>
                     </td>
-                    <td style={{ padding: '10px 14px', color: '#5C5C5C' }}>₨{fmtN(avgPrice)}</td>
+                    <td className="p-3 text-[var(--color-text-secondary)] font-mono">₨{fmtN(avgPrice)}</td>
                   </tr>
                 );
               })}
@@ -626,8 +657,8 @@ function Forecasting() {
 
   if (error) {
     return (
-      <div style={{ padding: '2rem', color: '#E74C3C' }}>
-        <p>⚠️ Error loading forecasting: {error}</p>
+      <div className="p-8 text-red-500 bg-red-500/10 rounded-2xl border border-red-500/20">
+        <p className="flex items-center gap-2"><AlertCircle /> Error loading forecasting: {error}</p>
       </div>
     );
   }
@@ -664,60 +695,62 @@ function Forecasting() {
   const growth = prevRev ? (((lastRev - prevRev) / prevRev) * 100).toFixed(1) : 0;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-      <h2 className="section-title">🔮 AI Forecasting & Predictions</h2>
-
+    <div className="flex flex-col gap-6">
       {/* summary */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '1rem' }}>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {[
-          { label: 'Last Month Revenue',    val: fmtPKR(lastRev),                               icon: '📊', color: '#D84C1A' },
+          { label: 'Last Month Revenue',    val: fmtPKR(lastRev),                               icon: '📊', color: 'var(--color-primary)' },
           { label: 'Month-over-Month',       val: `${Number(growth) >= 0 ? '+' : ''}${growth}%`, icon: '📈', color: Number(growth) >= 0 ? '#27AE60' : '#E74C3C' },
           { label: 'Best Sales Day',         val: bestDay ? bestDay.date : '—',                  icon: '🏆', color: '#F39C12', sub: bestDay ? fmtPKR(bestDay.revenue) : '' },
         ].map((c, i) => (
-          <div key={i} className="kpi-card" style={{ borderTop: `3px solid ${c.color}` }}>
-            <div style={{ fontSize: '1.8rem' }}>{c.icon}</div>
-            <p className="kpi-label" style={{ marginTop: 8 }}>{c.label}</p>
-            <p className="kpi-value" style={{ color: c.color }}>{c.val}</p>
-            {c.sub && <p style={{ fontSize: '0.78rem', color: '#5C5C5C' }}>{c.sub}</p>}
+          <div key={i} className="bg-[var(--color-surface)] p-6 rounded-2xl border border-[var(--color-border)] shadow-sm flex flex-col" style={{ borderTop: `4px solid ${c.color}` }}>
+            <div className="text-3xl mb-3">{c.icon}</div>
+            <h3 className="text-[var(--color-text-secondary)] font-medium mb-1">{c.label}</h3>
+            <div className="text-2xl font-bold" style={{ color: c.color }}>{c.val}</div>
+            {c.sub && <p className="text-xs text-[var(--color-text-tertiary)] mt-1">{c.sub}</p>}
           </div>
         ))}
       </div>
 
       {/* 6-month forecast chart */}
-      <div className="chart-card full-width">
-        <div className="chart-header">
-          <h3>📉 Revenue Forecast — Next 6 Months</h3>
-          <span style={{ fontSize: '0.78rem', color: '#8B8B8B', background: '#F8F6F2', padding: '3px 10px', borderRadius: 12 }}>
+      <div className="bg-[var(--color-surface)] p-6 rounded-2xl border border-[var(--color-border)] shadow-sm">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-lg font-bold text-[var(--color-text-primary)]">📉 Revenue Forecast — Next 6 Months</h2>
+          <span className="text-xs text-[var(--color-primary)] bg-[var(--color-primary)]/10 px-3 py-1 rounded-full font-medium">
             AI Linear Trend Model
           </span>
         </div>
-        <ResponsiveContainer width="100%" height={290}>
-          <LineChart data={forecastData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#E8E6E2" />
-            <XAxis dataKey="month" stroke="#8B8B8B" tick={{ fontSize: 11 }} />
-            <YAxis stroke="#8B8B8B" tickFormatter={(v) => `₨${(v / 1000000).toFixed(1)}M`} />
-            <Tooltip formatter={(v) => fmtPKR(v)} />
-            <Legend />
-            <Line type="monotone" dataKey="actual"   stroke="#27AE60" strokeWidth={2.5} dot={{ r: 4 }} name="Actual"          connectNulls={false} />
-            <Line type="monotone" dataKey="forecast" stroke="#D84C1A" strokeWidth={2.5} strokeDasharray="6 3" dot={{ r: 4 }} name="Forecast" connectNulls={false} />
-            <Line type="monotone" dataKey="upper"    stroke="#F39C12" strokeWidth={1}   strokeDasharray="3 3" dot={false}     name="Upper"           connectNulls={false} />
-            <Line type="monotone" dataKey="lower"    stroke="#3498DB" strokeWidth={1}   strokeDasharray="3 3" dot={false}     name="Lower"           connectNulls={false} />
-          </LineChart>
-        </ResponsiveContainer>
+        <div className="h-[300px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={forecastData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-divider)" vertical={false} />
+              <XAxis dataKey="month" stroke="var(--color-text-tertiary)" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis stroke="var(--color-text-tertiary)" tickFormatter={(v) => `₨${(v / 1000000).toFixed(1)}M`} axisLine={false} tickLine={false} />
+              <Tooltip formatter={(v) => fmtPKR(v)} cursor={{stroke: 'var(--color-divider)'}} />
+              <Legend />
+              <Line type="monotone" dataKey="actual"   stroke="#27AE60" strokeWidth={3} dot={{ r: 4 }} name="Actual"          connectNulls={false} />
+              <Line type="monotone" dataKey="forecast" stroke="var(--color-primary)" strokeWidth={3} strokeDasharray="6 3" dot={{ r: 4 }} name="Forecast" connectNulls={false} />
+              <Line type="monotone" dataKey="upper"    stroke="#F39C12" strokeWidth={1}   strokeDasharray="3 3" dot={false}     name="Upper"           connectNulls={false} />
+              <Line type="monotone" dataKey="lower"    stroke="#3498DB" strokeWidth={1}   strokeDasharray="3 3" dot={false}     name="Lower"           connectNulls={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
       </div>
 
       {/* historical bar */}
-      <div className="chart-card full-width">
-        <div className="chart-header"><h3>📊 Historical Monthly Revenue</h3></div>
-        <ResponsiveContainer width="100%" height={240}>
-          <BarChart data={monthly}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#E8E6E2" />
-            <XAxis dataKey="month" stroke="#8B8B8B" tick={{ fontSize: 11 }} />
-            <YAxis stroke="#8B8B8B" tickFormatter={(v) => `₨${(v / 1000000).toFixed(1)}M`} />
-            <Tooltip formatter={(v) => fmtPKR(v)} />
-            <Bar dataKey="revenue" name="Revenue" fill="#D84C1A" radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
+      <div className="bg-[var(--color-surface)] p-6 rounded-2xl border border-[var(--color-border)] shadow-sm">
+        <h2 className="text-lg font-bold text-[var(--color-text-primary)] mb-6">📊 Historical Monthly Revenue</h2>
+        <div className="h-[240px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={monthly}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-divider)" vertical={false} />
+              <XAxis dataKey="month" stroke="var(--color-text-tertiary)" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis stroke="var(--color-text-tertiary)" tickFormatter={(v) => `₨${(v / 1000000).toFixed(1)}M`} axisLine={false} tickLine={false} />
+              <Tooltip formatter={(v) => fmtPKR(v)} cursor={{fill: 'var(--color-divider)'}} />
+              <Bar dataKey="revenue" name="Revenue" fill="var(--color-primary)" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       </div>
     </div>
   );
@@ -910,15 +943,12 @@ function AIChat() {
       setMessages((prev) => [...prev, { role: 'user', text: question }]);
       setBusy(true);
 
-      const res = await fetch(`${BASE}/ai/chat`, {
+      const data = await apiRequest('/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question }),
       });
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-      const data = await res.json();
       setMessages((prev) => [...prev, {
         role: 'assistant',
         text: data.answer || data.detail || 'Sorry, no answer returned.',

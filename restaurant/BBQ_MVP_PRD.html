@@ -1,0 +1,498 @@
+<title>BBQ Restaurant AI MVP - PRD</title>
+<style>
+  :root {
+    --text: #1a1a1a;
+    --bg: #f9f9f9;
+    --border: #e0e0e0;
+    --accent: #d32f2f;
+    --accent-light: #ffebee;
+    --code-bg: #f5f5f5;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --text: #e0e0e0;
+      --bg: #1a1a1a;
+      --border: #333;
+      --accent: #ff6b6b;
+      --accent-light: #3d1f1f;
+      --code-bg: #2a2a2a;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --text: #e0e0e0;
+    --bg: #1a1a1a;
+    --border: #333;
+    --accent: #ff6b6b;
+    --accent-light: #3d1f1f;
+    --code-bg: #2a2a2a;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.6;
+    margin: 0;
+    padding: 40px 20px;
+  }
+
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  h1, h2, h3 {
+    color: var(--text);
+    margin-top: 30px;
+    margin-bottom: 15px;
+  }
+
+  h1 {
+    font-size: 2em;
+    border-bottom: 3px solid var(--accent);
+    padding-bottom: 10px;
+  }
+
+  h2 {
+    font-size: 1.5em;
+    color: var(--accent);
+  }
+
+  h3 {
+    font-size: 1.2em;
+  }
+
+  section {
+    margin-bottom: 40px;
+    padding: 20px;
+    background: var(--bg);
+    border-left: 4px solid var(--accent);
+    border-radius: 4px;
+  }
+
+  .subsection {
+    margin-left: 20px;
+    margin-top: 15px;
+  }
+
+  ul, ol {
+    margin: 10px 0;
+    padding-left: 25px;
+  }
+
+  li {
+    margin: 8px 0;
+  }
+
+  code {
+    background: var(--code-bg);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: "Monaco", "Courier New", monospace;
+    font-size: 0.9em;
+  }
+
+  .endpoint {
+    background: var(--code-bg);
+    padding: 12px;
+    border-radius: 4px;
+    margin: 10px 0;
+    border-left: 3px solid var(--accent);
+  }
+
+  .endpoint-method {
+    font-weight: bold;
+    color: var(--accent);
+  }
+
+  .priority-high {
+    background: var(--accent-light);
+    padding: 10px;
+    border-radius: 4px;
+    margin: 10px 0;
+  }
+
+  .checklist {
+    list-style: none;
+    padding-left: 0;
+  }
+
+  .checklist li:before {
+    content: "☐ ";
+    color: var(--accent);
+    font-weight: bold;
+    margin-right: 8px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 15px 0;
+  }
+
+  table th, table td {
+    border: 1px solid var(--border);
+    padding: 12px;
+    text-align: left;
+  }
+
+  table th {
+    background: var(--code-bg);
+    color: var(--accent);
+    font-weight: bold;
+  }
+
+  .success {
+    color: #4caf50;
+  }
+
+  .warning {
+    color: var(--accent);
+  }
+
+  .flow {
+    background: var(--code-bg);
+    padding: 15px;
+    border-radius: 4px;
+    font-family: monospace;
+    white-space: pre;
+    overflow-x: auto;
+  }
+</style>
+
+<div class="container">
+  <h1>🍖 BBQ Restaurant AI MVP - PRD</h1>
+
+  <section>
+    <h2>1. Executive Summary</h2>
+    <p>
+      An intelligent restaurant analytics platform that allows BBQ restaurant management to ask natural-language questions about their business and receive data-driven insights powered by AI, database queries, and machine learning.
+    </p>
+    <p><strong>Target User:</strong> Restaurant managers, analysts, and owners</p>
+    <p><strong>Success Metric:</strong> Successfully answer 5 key business questions with accurate data + AI reasoning</p>
+  </section>
+
+  <section>
+    <h2>2. MVP Scope</h2>
+    <p>The MVP will deliver a working end-to-end pipeline for ONE complete user journey:</p>
+
+    <div class="priority-high">
+      <strong>User Journey:</strong><br>
+      Manager → Dashboard (see KPIs) → AI Chat (ask question) → SQL Tool (query DB) → LLM (generate response) → Answer
+    </div>
+
+    <h3>What's IN MVP:</h3>
+    <ul>
+      <li>✅ Clean BBQ restaurant dataset (PostgreSQL)</li>
+      <li>✅ FastAPI backend with core APIs</li>
+      <li>✅ Simple web dashboard with KPIs & charts</li>
+      <li>✅ AI assistant with SQL tool calling</li>
+      <li>✅ Natural language to data insights</li>
+      <li>✅ Authentication (basic)</li>
+      <li>✅ Docker setup</li>
+    </ul>
+
+    <h3>What's OUT (Phase 2+):</h3>
+    <ul>
+      <li>❌ RAG (knowledge base)</li>
+      <li>❌ Sales forecasting</li>
+      <li>❌ Anomaly detection</li>
+      <li>❌ WebSockets / real-time</li>
+      <li>❌ Model versioning</li>
+      <li>❌ Advanced analytics</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>3. Core Features</h2>
+
+    <h3>3.1 Dashboard</h3>
+    <div class="subsection">
+      <p><strong>Display:</strong></p>
+      <ul>
+        <li>Total Revenue (all-time)</li>
+        <li>Total Orders (all-time)</li>
+        <li>Average Order Value</li>
+        <li>Top 5 Products (by revenue)</li>
+        <li>Daily Sales Chart (last 30 days)</li>
+        <li>Sales by Product Category</li>
+        <li>Order count trend</li>
+      </ul>
+      <p><strong>Tech:</strong> React + TypeScript + Recharts</p>
+    </div>
+
+    <h3>3.2 AI Assistant</h3>
+    <div class="subsection">
+      <p><strong>Capability:</strong> Answer natural language questions by querying the database</p>
+      <p><strong>Example Q&A:</strong></p>
+      <ul>
+        <li><code>Q: What's our total revenue?</code><br>
+            <code>A: Total revenue is Rs. 2,845,000 across 324 orders.</code></li>
+        <li><code>Q: Which products are top sellers?</code><br>
+            <code>A: BBQ Platter (320 units, Rs. 800K), Chicken Wings (215 units, Rs. 430K)...</code></li>
+        <li><code>Q: What was revenue on August 20?</code><br>
+            <code>A: Revenue on August 20 was Rs. 125,000 from 18 orders.</code></li>
+        <li><code>Q: Which day has highest sales?</code><br>
+            <code>A: Saturday has the highest average daily revenue at Rs. 95,000.</code></li>
+      </ul>
+      <p><strong>Tech:</strong> Claude API + SQL tool</p>
+    </div>
+
+    <h3>3.3 Agent Architecture (MVP)</h3>
+    <div class="flow">User Question
+  ↓
+Intent Recognition (Claude)
+  ↓
+SQL Tool Selection
+  ↓
+Execute Query
+  ↓
+Result Analysis
+  ↓
+Natural Language Response
+    </div>
+  </section>
+
+  <section>
+    <h2>4. API Endpoints (MVP)</h2>
+
+    <h3>Dashboard Endpoints</h3>
+    <div class="endpoint">
+      <span class="endpoint-method">GET</span> <code>/api/v1/dashboard/metrics</code>
+      <p>Returns: total_revenue, total_orders, avg_order_value, top_products, daily_sales, category_breakdown</p>
+    </div>
+
+    <h3>Sales Endpoints</h3>
+    <div class="endpoint">
+      <span class="endpoint-method">GET</span> <code>/api/v1/sales/daily</code>
+      <p>Query params: start_date, end_date. Returns daily sales</p>
+    </div>
+
+    <div class="endpoint">
+      <span class="endpoint-method">GET</span> <code>/api/v1/sales/total</code>
+      <p>Returns total revenue across all time</p>
+    </div>
+
+    <h3>Product Endpoints</h3>
+    <div class="endpoint">
+      <span class="endpoint-method">GET</span> <code>/api/v1/products/top</code>
+      <p>Query params: limit (default 10). Returns top products by revenue</p>
+    </div>
+
+    <div class="endpoint">
+      <span class="endpoint-method">GET</span> <code>/api/v1/products</code>
+      <p>Returns all products with sales metrics</p>
+    </div>
+
+    <h3>AI Agent Endpoints</h3>
+    <div class="endpoint">
+      <span class="endpoint-method">POST</span> <code>/api/v1/ai/ask</code>
+      <p>Body: <code>{"question": "string"}</code><br>
+      Returns: <code>{"answer": "string", "data_source": "database|ml|combination", "confidence": 0-1}</code></p>
+    </div>
+
+    <h3>Auth Endpoints</h3>
+    <div class="endpoint">
+      <span class="endpoint-method">POST</span> <code>/api/v1/auth/login</code>
+      <p>Body: <code>{"username": "string", "password": "string"}</code><br>
+      Returns: JWT token</p>
+    </div>
+
+    <div class="endpoint">
+      <span class="endpoint-method">POST</span> <code>/api/v1/auth/register</code>
+      <p>Create new user (MVP: admin only)</p>
+    </div>
+
+    <h3>Health Endpoint</h3>
+    <div class="endpoint">
+      <span class="endpoint-method">GET</span> <code>/api/v1/health</code>
+      <p>Returns: <code>{"status": "healthy", "database": "connected", "ai_service": "available"}</code></p>
+    </div>
+  </section>
+
+  <section>
+    <h2>5. Data Model (PostgreSQL)</h2>
+
+    <h3>Core Tables</h3>
+    <table>
+      <tr>
+        <th>Table</th>
+        <th>Purpose</th>
+        <th>Key Columns</th>
+      </tr>
+      <tr>
+        <td><code>products</code></td>
+        <td>Product catalog</td>
+        <td>id, name, category, price, created_at</td>
+      </tr>
+      <tr>
+        <td><code>orders</code></td>
+        <td>Order transactions</td>
+        <td>id, date, total_amount, quantity, created_at</td>
+      </tr>
+      <tr>
+        <td><code>order_items</code></td>
+        <td>Items per order</td>
+        <td>id, order_id, product_id, quantity, unit_price</td>
+      </tr>
+      <tr>
+        <td><code>users</code></td>
+        <td>App users</td>
+        <td>id, username, email, password_hash, role</td>
+      </tr>
+      <tr>
+        <td><code>sales_daily</code></td>
+        <td>Daily aggregated sales</td>
+        <td>date, total_revenue, total_orders, avg_order_value</td>
+      </tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>6. AI Tool: SQL Query Tool</h2>
+
+    <h3>Purpose</h3>
+    <p>Enable the AI agent to query the database safely and accurately.</p>
+
+    <h3>Supported Queries (Whitelisted)</h3>
+    <ul>
+      <li>Total revenue calculation</li>
+      <li>Product sales ranking</li>
+      <li>Daily/weekly/monthly aggregations</li>
+      <li>Order metrics (count, average)</li>
+      <li>Time-based comparisons</li>
+      <li>Category breakdowns</li>
+    </ul>
+
+    <h3>Safety Rules</h3>
+    <ul>
+      <li>✅ SELECT queries only</li>
+      <li>❌ DELETE, UPDATE, DROP prohibited</li>
+      <li>❌ No arbitrary SQL execution</li>
+      <li>❌ No credential exposure</li>
+      <li>Queries logged for audit</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>7. Implementation Roadmap</h2>
+
+    <h3>Phase 1 - Setup (Day 1)</h3>
+    <ul class="checklist">
+      <li>Create project structure</li>
+      <li>Setup PostgreSQL + sample data</li>
+      <li>Initialize FastAPI app</li>
+      <li>Configure environment variables</li>
+    </ul>
+
+    <h3>Phase 2 - Backend (Day 2)</h3>
+    <ul class="checklist">
+      <li>Implement database models</li>
+      <li>Create analytics queries</li>
+      <li>Build dashboard APIs</li>
+      <li>Implement authentication</li>
+    </ul>
+
+    <h3>Phase 3 - AI Agent (Day 3)</h3>
+    <ul class="checklist">
+      <li>Implement SQL tool</li>
+      <li>Setup Claude API integration</li>
+      <li>Build agent reasoning loop</li>
+      <li>Test Q&A pipeline</li>
+    </ul>
+
+    <h3>Phase 4 - Frontend (Day 4)</h3>
+    <ul class="checklist">
+      <li>Create React dashboard</li>
+      <li>Build KPI cards</li>
+      <li>Implement charts</li>
+      <li>Add AI chat interface</li>
+    </ul>
+
+    <h3>Phase 5 - Integration & Deploy (Day 5)</h3>
+    <ul class="checklist">
+      <li>End-to-end testing</li>
+      <li>Docker setup</li>
+      <li>Documentation</li>
+      <li>Production deployment</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>8. Success Criteria</h2>
+    <p>MVP is complete when:</p>
+    <ul class="checklist">
+      <li>Dashboard loads and displays 7+ metrics</li>
+      <li>AI can answer 5 core questions accurately</li>
+      <li>All API endpoints documented & working</li>
+      <li>Authentication functional</li>
+      <li>Docker deployment successful</li>
+      <li>No hallucinated numbers in responses</li>
+      <li>All data sourced from database</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>9. Sample Questions MVP Will Answer</h2>
+    <ol>
+      <li>"What is our total revenue?"</li>
+      <li>"What are the top 10 best-selling products?"</li>
+      <li>"What's the average order value?"</li>
+      <li>"Which day has the highest sales?"</li>
+      <li>"Compare this week with last week"</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>10. Technology Stack</h2>
+    <table>
+      <tr>
+        <th>Component</th>
+        <th>Technology</th>
+      </tr>
+      <tr>
+        <td>Backend</td>
+        <td>Python 3.11 + FastAPI</td>
+      </tr>
+      <tr>
+        <td>Database</td>
+        <td>PostgreSQL 14+</td>
+      </tr>
+      <tr>
+        <td>Frontend</td>
+        <td>React 18 + TypeScript + Recharts</td>
+      </tr>
+      <tr>
+        <td>AI/LLM</td>
+        <td>Claude 3 (Anthropic API)</td>
+      </tr>
+      <tr>
+        <td>Authentication</td>
+        <td>JWT + bcrypt</td>
+      </tr>
+      <tr>
+        <td>Containerization</td>
+        <td>Docker + Docker Compose</td>
+      </tr>
+      <tr>
+        <td>Data Viz</td>
+        <td>Recharts</td>
+      </tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>11. Constraints & Assumptions</h2>
+    <ul>
+      <li>MVP uses sample/synthetic BBQ restaurant data</li>
+      <li>Single restaurant (multi-branch comes in Phase 2)</li>
+      <li>No real-time data (batch processing)</li>
+      <li>English language questions only (MVP)</li>
+      <li>Basic role-based access (admin, viewer)</li>
+      <li>Claude API key required (from environment)</li>
+    </ul>
+  </section>
+
+</div>
